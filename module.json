@@ -1,0 +1,19 @@
+{
+    "name": "CalendarInviteModule",
+    "alias": "calendarinvitemodule",
+    "description": "Displays Outlook/Teams calendar invitations (ICS) properly in conversations",
+    "version": "1.0.0",
+    "author": "WAO",
+    "authorUrl": "https://werksarzt-online.de",
+    "license": "MIT",
+    "requires": {
+        "freescout": "1.8.0"
+    },
+    "providers": [
+        "Modules\\CalendarInviteModule\\Providers\\CalendarInviteModuleServiceProvider"
+    ],
+    "files": [
+        "start.php"
+    ],
+    "active": 1
+}
