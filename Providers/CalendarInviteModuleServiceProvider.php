@@ -10,6 +10,7 @@ class CalendarInviteModuleServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'calendarinvitemodule');
+        $this->loadRoutesFrom(__DIR__ . '/../Http/routes.php');
 
         // Hook into thread body output (4 params: body, thread, conversation, mailbox)
         Eventy::addFilter('thread.body_output', function ($body, $thread, $conversation, $mailbox) {
@@ -19,7 +20,7 @@ class CalendarInviteModuleServiceProvider extends ServiceProvider
 
     public function register()
     {
-        //
+        $this->mergeConfigFrom(__DIR__ . '/../Config/config.php', 'calendarinvitemodule');
     }
 
     protected function processCalendarInvite($body, $thread)
