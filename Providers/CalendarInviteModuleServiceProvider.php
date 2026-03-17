@@ -38,7 +38,10 @@ class CalendarInviteModuleServiceProvider extends ServiceProvider
         }
 
         try {
-            $html = view('calendarinvitemodule::invite', ['event' => $event])->render();
+            $html = view('calendarinvitemodule::invite', [
+                'event' => $event,
+                'thread_id' => $thread->id ?? null,
+            ])->render();
             return $html . $body;
         } catch (\Exception $e) {
             return $body;
@@ -94,15 +97,20 @@ class CalendarInviteModuleServiceProvider extends ServiceProvider
         $vevent = $match[1];
 
         $event = [
-            'summary'     => $this->getIcsField($vevent, 'SUMMARY'),
-            'dtstart'     => $this->parseIcsDate($vevent, 'DTSTART'),
-            'dtend'       => $this->parseIcsDate($vevent, 'DTEND'),
-            'location'    => $this->getIcsField($vevent, 'LOCATION'),
-            'description' => $this->getIcsField($vevent, 'DESCRIPTION'),
-            'organizer'   => $this->getIcsOrganizer($vevent),
-            'attendees'   => $this->getIcsAttendees($vevent),
-            'teams_link'  => null,
-            'method'      => 'REQUEST',
+            'summary'        => $this->getIcsField($vevent, 'SUMMARY'),
+            'dtstart'        => $this->parseIcsDate($vevent, 'DTSTART'),
+            'dtend'          => $this->parseIcsDate($vevent, 'DTEND'),
+            'dtstart_raw'    => $this->getIcsField($vevent, 'DTSTART'),
+            'dtend_raw'      => $this->getIcsField($vevent, 'DTEND'),
+            'location'       => $this->getIcsField($vevent, 'LOCATION'),
+            'description'    => $this->getIcsField($vevent, 'DESCRIPTION'),
+            'organizer'      => $this->getIcsOrganizer($vevent),
+            'organizer_email'=> $this->getIcsOrganizerEmail($vevent),
+            'attendees'      => $this->getIcsAttendees($vevent),
+            'uid'            => $this->getIcsField($vevent, 'UID'),
+            'sequence'       => $this->getIcsField($vevent, 'SEQUENCE') ?: '0',
+            'teams_link'     => null,
+            'method'         => 'REQUEST',
         ];
 
         // Extract method from VCALENDAR level
@@ -192,6 +200,14 @@ class CalendarInviteModuleServiceProvider extends ServiceProvider
                 }
                 return $dt;
             }
+        }
+        return null;
+    }
+
+    protected function getIcsOrganizerEmail($vevent)
+    {
+        if (preg_match('/ORGANIZER[^:]*:MAILTO:([^\r\n]+)/i', $vevent, $m)) {
+            return trim($m[1]);
         }
         return null;
     }

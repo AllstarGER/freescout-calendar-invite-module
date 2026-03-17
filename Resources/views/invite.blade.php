@@ -54,6 +54,53 @@
         @endif
     </table>
 
+    {{-- RSVP Buttons (nur bei REQUEST, nicht bei CANCEL/REPLY) --}}
+    @if($event['method'] === 'REQUEST' && $event['uid'] && $event['organizer_email'])
+    @php
+        $rsvpId = 'cal-rsvp-' . md5($event['uid']);
+    @endphp
+    <div id="{{ $rsvpId }}" style="margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+        <span style="color: #718096; font-size: 13px; margin-right: 4px;">Antworten:</span>
+        <button onclick="calInviteRsvp(this, 'ACCEPTED')" type="button"
+                data-uid="{{ e($event['uid']) }}"
+                data-summary="{{ e($event['summary'] ?? '') }}"
+                data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
+                data-dtend="{{ e($event['dtend_raw'] ?? '') }}"
+                data-sequence="{{ e($event['sequence']) }}"
+                data-organizer-email="{{ e($event['organizer_email']) }}"
+                data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-group="{{ $rsvpId }}"
+                style="background: #38a169; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
+            ✓ Ja
+        </button>
+        <button onclick="calInviteRsvp(this, 'TENTATIVE')" type="button"
+                data-uid="{{ e($event['uid']) }}"
+                data-summary="{{ e($event['summary'] ?? '') }}"
+                data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
+                data-dtend="{{ e($event['dtend_raw'] ?? '') }}"
+                data-sequence="{{ e($event['sequence']) }}"
+                data-organizer-email="{{ e($event['organizer_email']) }}"
+                data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-group="{{ $rsvpId }}"
+                style="background: #d69e2e; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
+            ? Vielleicht
+        </button>
+        <button onclick="calInviteRsvp(this, 'DECLINED')" type="button"
+                data-uid="{{ e($event['uid']) }}"
+                data-summary="{{ e($event['summary'] ?? '') }}"
+                data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
+                data-dtend="{{ e($event['dtend_raw'] ?? '') }}"
+                data-sequence="{{ e($event['sequence']) }}"
+                data-organizer-email="{{ e($event['organizer_email']) }}"
+                data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-group="{{ $rsvpId }}"
+                style="background: #e53e3e; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
+            ✗ Nein
+        </button>
+    </div>
+    @endif
+
+    {{-- Action Buttons (Teams-Link, Terminplaner) --}}
     <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
         @if($event['teams_link'])
         <a href="{{ $event['teams_link'] }}" target="_blank" rel="noopener"
@@ -87,6 +134,61 @@
 </div>
 
 <script>
+function calInviteRsvp(btn, status) {
+    if (btn.disabled) return;
+
+    var group = document.getElementById(btn.dataset.rsvpGroup);
+    var buttons = group ? group.querySelectorAll('button') : [];
+    buttons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
+    btn.style.opacity = '1';
+
+    var labels = {ACCEPTED: '✓ Zugesagt', DECLINED: '✗ Abgesagt', TENTATIVE: '? Vielleicht'};
+    var origText = btn.innerHTML;
+    btn.innerHTML = '⏳ Sende...';
+
+    var data = {
+        status: status,
+        uid: btn.dataset.uid,
+        summary: btn.dataset.summary,
+        dtstart: btn.dataset.dtstart,
+        dtend: btn.dataset.dtend,
+        sequence: btn.dataset.sequence,
+        organizer_email: btn.dataset.organizerEmail,
+        thread_id: btn.dataset.threadId
+    };
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/calendar-invite/rsvp');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    var token = document.querySelector('meta[name="csrf-token"]');
+    if (token) xhr.setRequestHeader('X-CSRF-TOKEN', token.getAttribute('content'));
+
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            btn.innerHTML = labels[status] || status;
+            btn.style.opacity = '1';
+            // Hide other buttons
+            buttons.forEach(function(b) { if (b !== btn) b.style.display = 'none'; });
+        } else {
+            var err = 'Fehler';
+            try { err = JSON.parse(xhr.responseText).error || err; } catch(e) {}
+            btn.innerHTML = '❌ ' + err;
+            setTimeout(function() {
+                btn.innerHTML = origText;
+                buttons.forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
+            }, 3000);
+        }
+    };
+    xhr.onerror = function() {
+        btn.innerHTML = '❌ Verbindungsfehler';
+        setTimeout(function() {
+            btn.innerHTML = origText;
+            buttons.forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
+        }, 3000);
+    };
+    xhr.send(JSON.stringify(data));
+}
+
 function calInviteCreateDraft(btn) {
     if (btn.disabled) return;
     var origText = btn.innerHTML;
