@@ -61,7 +61,8 @@
     @endphp
     <div id="{{ $rsvpId }}" style="margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
         <span style="color: #718096; font-size: 13px; margin-right: 4px;">Antworten:</span>
-        <button onclick="calInviteRsvp(this, 'ACCEPTED')" type="button"
+        <button class="cal-invite-rsvp" type="button"
+                data-status="ACCEPTED"
                 data-uid="{{ e($event['uid']) }}"
                 data-summary="{{ e($event['summary'] ?? '') }}"
                 data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
@@ -69,11 +70,13 @@
                 data-sequence="{{ e($event['sequence']) }}"
                 data-organizer-email="{{ e($event['organizer_email']) }}"
                 data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-url="{{ e(url('/calendar-invite/rsvp')) }}"
                 data-rsvp-group="{{ $rsvpId }}"
                 style="background: #38a169; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
             ✓ Ja
         </button>
-        <button onclick="calInviteRsvp(this, 'TENTATIVE')" type="button"
+        <button class="cal-invite-rsvp" type="button"
+                data-status="TENTATIVE"
                 data-uid="{{ e($event['uid']) }}"
                 data-summary="{{ e($event['summary'] ?? '') }}"
                 data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
@@ -81,11 +84,13 @@
                 data-sequence="{{ e($event['sequence']) }}"
                 data-organizer-email="{{ e($event['organizer_email']) }}"
                 data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-url="{{ e(url('/calendar-invite/rsvp')) }}"
                 data-rsvp-group="{{ $rsvpId }}"
                 style="background: #d69e2e; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
             ? Vielleicht
         </button>
-        <button onclick="calInviteRsvp(this, 'DECLINED')" type="button"
+        <button class="cal-invite-rsvp" type="button"
+                data-status="DECLINED"
                 data-uid="{{ e($event['uid']) }}"
                 data-summary="{{ e($event['summary'] ?? '') }}"
                 data-dtstart="{{ e($event['dtstart_raw'] ?? '') }}"
@@ -93,6 +98,7 @@
                 data-sequence="{{ e($event['sequence']) }}"
                 data-organizer-email="{{ e($event['organizer_email']) }}"
                 data-thread-id="{{ e($thread_id ?? '') }}"
+                data-rsvp-url="{{ e(url('/calendar-invite/rsvp')) }}"
                 data-rsvp-group="{{ $rsvpId }}"
                 style="background: #e53e3e; color: #fff; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500; font-size: 13px; font-family: inherit;">
             ✗ Nein
@@ -113,12 +119,16 @@
         @php
             $btnId = 'cal-draft-' . md5(($event['summary'] ?? '') . ($event['dtstart'] ? $event['dtstart']->format('c') : ''));
         @endphp
-        <button id="{{ $btnId }}" onclick="calInviteCreateDraft(this)" type="button"
+        <button id="{{ $btnId }}" class="cal-invite-create-draft" type="button"
                 data-summary="{{ e($event['summary'] ?? '') }}"
                 data-start="{{ $event['dtstart'] ? $event['dtstart']->format('Y-m-d\TH:i:s') : '' }}"
                 data-end="{{ $event['dtend'] ? $event['dtend']->format('Y-m-d\TH:i:s') : '' }}"
                 data-organizer="{{ e($event['organizer'] ?? '') }}"
                 data-location="{{ e($event['location'] ?? '') }}"
+                data-teams-link="{{ e($event['teams_link'] ?? '') }}"
+                data-description="{{ e($event['description'] ?? '') }}"
+                data-thread-id="{{ e($thread_id ?? '') }}"
+                data-create-draft-url="{{ e(route('users.ajax')) }}"
                 style="display: inline-block; background: #38a169; color: #fff; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; font-size: 14px; font-family: inherit;">
             📋 In Terminplaner übernehmen
         </button>
@@ -132,122 +142,3 @@
     </details>
     @endif
 </div>
-
-<script>
-function calInviteRsvp(btn, status) {
-    if (btn.disabled) return;
-
-    var group = document.getElementById(btn.dataset.rsvpGroup);
-    var buttons = group ? group.querySelectorAll('button') : [];
-    buttons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
-    btn.style.opacity = '1';
-
-    var labels = {ACCEPTED: '✓ Zugesagt', DECLINED: '✗ Abgesagt', TENTATIVE: '? Vielleicht'};
-    var origText = btn.innerHTML;
-    btn.innerHTML = '⏳ Sende...';
-
-    var data = {
-        status: status,
-        uid: btn.dataset.uid,
-        summary: btn.dataset.summary,
-        dtstart: btn.dataset.dtstart,
-        dtend: btn.dataset.dtend,
-        sequence: btn.dataset.sequence,
-        organizer_email: btn.dataset.organizerEmail,
-        thread_id: btn.dataset.threadId
-    };
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/calendar-invite/rsvp');
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    var token = document.querySelector('meta[name="csrf-token"]');
-    if (token) xhr.setRequestHeader('X-CSRF-TOKEN', token.getAttribute('content'));
-
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            btn.innerHTML = labels[status] || status;
-            btn.style.opacity = '1';
-            // Hide other buttons
-            buttons.forEach(function(b) { if (b !== btn) b.style.display = 'none'; });
-        } else {
-            var err = 'Fehler';
-            try { err = JSON.parse(xhr.responseText).error || err; } catch(e) {}
-            btn.innerHTML = '❌ ' + err;
-            setTimeout(function() {
-                btn.innerHTML = origText;
-                buttons.forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
-            }, 3000);
-        }
-    };
-    xhr.onerror = function() {
-        btn.innerHTML = '❌ Verbindungsfehler';
-        setTimeout(function() {
-            btn.innerHTML = origText;
-            buttons.forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
-        }, 3000);
-    };
-    xhr.send(JSON.stringify(data));
-}
-
-function calInviteCreateDraft(btn) {
-    if (btn.disabled) return;
-    var origText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Wird erstellt...';
-    btn.style.opacity = '0.7';
-
-    var notes = [];
-    if (btn.dataset.organizer) notes.push('Organisator: ' + btn.dataset.organizer);
-    if (btn.dataset.location) notes.push('Ort: ' + btn.dataset.location);
-
-    var data = {
-        patient_name: btn.dataset.summary || 'Termin',
-        treatment_type: 'Besprechung',
-        start_datetime: btn.dataset.start,
-        end_datetime: btn.dataset.end,
-        notes: notes.join('\n')
-    };
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/calendar-invite/create-draft');
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    var token = document.querySelector('meta[name="csrf-token"]');
-    if (token) xhr.setRequestHeader('X-CSRF-TOKEN', token.getAttribute('content'));
-
-    xhr.onload = function() {
-        if (xhr.status === 201) {
-            var result = JSON.parse(xhr.responseText);
-            btn.innerHTML = '✅ Erstellt';
-            btn.style.background = '#2f855a';
-            if (result.url) {
-                setTimeout(function() {
-                    btn.innerHTML = '<a href="' + result.url + '" target="_blank" style="color:#fff;text-decoration:underline;">📋 Im Terminplaner öffnen</a>';
-                    btn.style.cursor = 'default';
-                }, 1000);
-            }
-        } else {
-            var err = 'Fehler';
-            try { err = JSON.parse(xhr.responseText).error || err; } catch(e) {}
-            btn.innerHTML = '❌ ' + err;
-            btn.style.background = '#e53e3e';
-            setTimeout(function() {
-                btn.innerHTML = origText;
-                btn.style.background = '#38a169';
-                btn.style.opacity = '1';
-                btn.disabled = false;
-            }, 3000);
-        }
-    };
-    xhr.onerror = function() {
-        btn.innerHTML = '❌ Verbindungsfehler';
-        btn.style.background = '#e53e3e';
-        setTimeout(function() {
-            btn.innerHTML = origText;
-            btn.style.background = '#38a169';
-            btn.style.opacity = '1';
-            btn.disabled = false;
-        }, 3000);
-    };
-    xhr.send(JSON.stringify(data));
-}
-</script>
